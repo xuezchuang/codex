@@ -424,6 +424,10 @@ impl ChatWidget {
                     );
                 }
             }
+            SlashCommand::Usage => {
+                self.add_usage_output();
+            }
+
             SlashCommand::Ide => {
                 self.handle_ide_command();
             }
@@ -971,6 +975,7 @@ impl ChatWidget {
         match cmd {
             SlashCommand::Ide
             | SlashCommand::Status
+            | SlashCommand::Usage
             | SlashCommand::DebugConfig
             | SlashCommand::Ps
             | SlashCommand::Stop
