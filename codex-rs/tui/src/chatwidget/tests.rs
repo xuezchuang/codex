@@ -249,6 +249,7 @@ mod side;
 mod slash_commands;
 mod status_and_layout;
 mod status_command_tests;
+mod usage_command_tests;
 mod status_surface_previews;
 mod terminal_title;
 

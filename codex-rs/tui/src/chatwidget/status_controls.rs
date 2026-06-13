@@ -274,6 +274,23 @@ impl ChatWidget {
         }
     }
 
+
+    /// Render a compact two-line summary of the current and cumulative token usage.
+    ///
+    /// Mirrors the `Token usage: ...` line shown when the session exits so the user can
+    /// check usage mid-session without leaving the TUI. The first line is the current
+    /// active context size (it shrinks after `/compact`); the second line is the cumulative
+    /// session total.
+    pub(crate) fn add_usage_output(&mut self) {
+        let token_info = self.token_info.as_ref();
+        let last = token_info.map(|ti| &ti.last_token_usage);
+        let total = token_info.map(|ti| &ti.total_token_usage);
+        let lines: Vec<Line<'static>> = vec![
+            format!("Token usage (this turn): {}", render_token_usage(last)).into(),
+            format!("Token usage (session  ): {}", render_token_usage(total)).into(),
+        ];
+        self.add_plain_history_lines(lines);
+    }
     pub(super) fn open_status_line_setup(&mut self) {
         let configured_status_line_items = self.configured_status_line_items();
         let view = StatusLineSetupView::new(
@@ -388,5 +405,17 @@ impl ChatWidget {
             None | Some(ReasoningEffortConfig::None) => "default".to_string(),
             Some(effort) => effort.as_str().to_string(),
         }
+    }
+}
+
+
+/// Render a single TokenUsage snapshot using the same Display impl that the
+/// session-exit summary uses, so the per-row text matches what the user sees
+/// when they press Ctrl+C. Returns a placeholder string when no usage has
+/// been recorded yet.
+fn render_token_usage(usage: Option<&crate::token_usage::TokenUsage>) -> String {
+    match usage {
+        Some(usage) if !usage.is_zero() => usage.to_string(),
+        _ => "(no usage recorded yet)".to_string(),
     }
 }

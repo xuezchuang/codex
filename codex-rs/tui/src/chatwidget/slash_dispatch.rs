@@ -438,6 +438,10 @@ impl ChatWidget {
                     self.add_token_activity_output(tokens::TokenActivityView::Daily);
                 }
             }
+            SlashCommand::Token => {
+                self.add_usage_output();
+            }
+
             SlashCommand::Ide => {
                 self.handle_ide_command();
             }
@@ -1033,6 +1037,7 @@ impl ChatWidget {
             SlashCommand::Ide
             | SlashCommand::Status
             | SlashCommand::Usage
+            | SlashCommand::Token
             | SlashCommand::DebugConfig
             | SlashCommand::Ps
             | SlashCommand::Stop
