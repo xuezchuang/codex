@@ -70,6 +70,156 @@ Run `just fmt` (in the `codex-rs` directory) automatically after you have finish
 
 Before finalizing a large change to `codex-rs`, run `just fix -p <project>` (in `codex-rs` directory) to fix any linter issues in the code. Prefer scoping with `-p` to avoid slow workspace‑wide Clippy builds; only run `just fix` without `-p` if you changed shared crates. Do not re-run tests after running `fix` or `fmt`.
 
+## Branch workflow (xue fork)
+
+This fork (`xuezchuang/codex`) keeps three long-lived branches on the same fork.
+Keep this section's flow in sync with reality; update it whenever the layout changes.
+
+### Branches
+
+| Local branch | Tracked remote | Tracks | Purpose |
+|---|---|---|---|
+| `master` | `origin/master` | `upstream/main` (`https://github.com/openai/codex.git`) | Read-only mirror of `openai/codex` `main`. Never commit here. |
+| `xcode` | `origin/xcode` | `origin/xcode` | Personal development branch. All own work lives here. |
+| `codeforge` | `origin/codeforge` | `origin/codeforge` | Second personal namespace, same code as `xcode` (e.g. for separate release lines). |
+| `main` | `origin/main` | `origin/main` | Historical/default branch on the fork. Keep aligned with `origin/main`. |
+
+Remotes:
+
+- `origin` -> `https://github.com/xuezchuang/codex.git` (this fork; all pushes go here).
+- `upstream` -> `https://github.com/openai/codex.git` (read-only; used to refresh `master`).
+
+If `upstream` is missing, add it once:
+
+```bash
+git remote add upstream https://github.com/openai/codex.git
+```
+
+### Refresh `master` from upstream
+
+Run this whenever upstream has new commits you want available locally. It is safe to run at any time; `master` carries no own work.
+
+```bash
+git checkout master
+git fetch upstream
+git merge upstream/main         # fast-forward only; never --no-ff on master
+git push origin master
+```
+
+If `git merge upstream/main` ever fails fast-forward (shouldn't, but if it does), something is wrong: stop, do not commit, investigate. `master` must stay a clean mirror.
+
+### Sync upstream into `xcode` (the rebased flow)
+
+`xcode` carries personal commits on top of upstream. **Always sync by rebasing `xcode` onto `master`** so `xcode` keeps a linear history and stays fast-forward-pushable to `origin/xcode`.
+
+Run this whenever you want to pull upstream changes into `xcode`:
+
+```bash
+# 0. Make sure working tree on xcode is clean. Stash or commit any WIP first.
+git status                     # must say "nothing to commit, working tree clean" on xcode
+git checkout xcode
+git rebase master
+```
+
+`git rebase master` will replay every commit unique to `xcode` (e.g. the `/token` slash command) on top of the latest `master`. Most of the time there will be no conflicts.
+
+**If a conflict appears:**
+
+1. Read the conflict. It is almost always in `codex-rs/tui/src/slash_command.rs` or
+   `codex-rs/tui/src/chatwidget/slash_dispatch.rs` because upstream tends to add new
+   `SlashCommand` variants that overlap with our own.
+2. Decide the resolution per the table below (most common cases).
+3. After resolving all conflicts:
+   ```bash
+   git add <resolved files>
+   GIT_EDITOR=true git rebase --continue
+   ```
+   `GIT_EDITOR=true` is required on this Windows shell because plain `git rebase --continue`
+   would otherwise block on a `vim` prompt.
+4. Verify the result:
+   ```bash
+   git log --oneline master..xcode   # should show only the own-feature commits
+   git diff master xcode --stat      # should be small
+   ```
+
+**If you want to bail out:**
+
+```bash
+git rebase --abort
+```
+
+The state goes back to the pre-rebase `xcode` and nothing is lost.
+
+#### Common conflict: `SlashCommand` variant overlap
+
+Upstream adds new slash commands frequently. If you also added a variant with the same name
+in `xcode`, rename yours to a non-overlapping name rather than dropping it. The decision
+table:
+
+| Your intent | Resolution |
+|---|---|
+| Your command is the same idea as upstream's | Drop yours, keep upstream's, port any test changes. |
+| Your command is a different feature but the same name | Rename yours. Use a name parallel to existing commands (e.g. `SlashCommand::Usage` + token info -> `SlashCommand::Token`). Update: the variant in `codex-rs/tui/src/slash_command.rs`, the dispatch arm in `codex-rs/tui/src/chatwidget/slash_dispatch.rs`, the "available during task" / "available in side conversation" lists in the same file, the `description()` arm, and any tests under `codex-rs/tui/src/chatwidget/tests/`. |
+| Both should coexist | Keep both variants and both dispatch arms. Add yours next to upstream's, not replacing it. |
+
+After resolving, sanity check the diff in `codex-rs/tui/src/slash_command.rs` and
+`codex-rs/tui/src/chatwidget/slash_dispatch.rs` for leftover `<<<<<<<` markers before
+`git add`.
+
+### Sync `xcode` into `codeforge`
+
+`codeforge` mirrors `xcode`. After any push to `xcode`:
+
+```bash
+git checkout codeforge
+git rebase xcode                  # or: git merge --ff-only xcode (if no own commits)
+git push origin codeforge
+```
+
+If `codeforge` ever grows its own commits, switch from rebase to `git merge xcode --no-ff`.
+
+### Push `xcode` to `origin/xcode`
+
+After rebase, push. The rebase rewrites SHAs, so the first push after a sync will be non-fast-forward. Use `--force-with-lease` to be safe:
+
+```bash
+git checkout xcode
+git push --force-with-lease origin xcode
+```
+
+`--force-with-lease` (not `--force`) aborts if someone else has pushed to `origin/xcode`
+since you last fetched, which would otherwise silently clobber their work.
+
+### What NEVER to do
+
+- Never commit on `master`. It is a mirror only.
+- Never `git merge master` into `xcode`. Always rebase. Merging breaks the linear history
+  and makes future rebases much harder.
+- Never `git push --force` (use `--force-with-lease`).
+- Never rebase `xcode` after it has been publicly shared with other people without
+  coordinating first; rebasing rewrites SHAs that others may have based work on.
+  In this fork, `xcode` is single-user, so this is fine; just keep the rule in mind
+  if the fork ever becomes multi-user.
+
+### Quick reference
+
+```bash
+# One-time setup
+git remote add upstream https://github.com/openai/codex.git
+
+# Refresh master mirror
+git checkout master && git fetch upstream && git merge upstream/main && git push origin master
+
+# Sync upstream into xcode (the common case)
+git checkout xcode && git rebase master
+#   ... resolve any conflicts ...
+GIT_EDITOR=true git rebase --continue
+git push --force-with-lease origin xcode
+
+# Mirror xcode to codeforge
+git checkout codeforge && git rebase xcode && git push origin codeforge
+```
+
 ## The `codex-core` crate
 
 Over time, the `codex-core` crate (defined in `codex-rs/core/`) has become bloated because it is the largest crate, so it is often easier to add something new to `codex-core` rather than refactor out the library code you need so your new code neither takes a dependency on, nor contributes to the size of, `codex-core`.
