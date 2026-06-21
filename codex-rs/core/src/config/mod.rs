@@ -801,7 +801,7 @@ pub struct Config {
     /// keyring: Use an OS-specific keyring service.
     ///          Credentials stored in the keyring will only be readable by Codex unless the user explicitly grants access via OS-level keyring access.
     ///          https://github.com/openai/codex/blob/main/codex-rs/rmcp-client/src/oauth.rs#L2
-    /// file: CODEX_HOME/.credentials.json
+    /// file: <config_home>/.credentials.json (the directory returned by `find_codex_home`)
     ///       This file will be readable to Codex and other applications running as the same user.
     /// auto (default): keyring if available, otherwise file.
     pub mcp_oauth_credentials_store_mode: OAuthCredentialsStoreMode,
@@ -847,14 +847,16 @@ pub struct Config {
     /// Memories subsystem settings.
     pub memories: MemoriesConfig,
 
-    /// Directory containing all Codex state (defaults to `~/.codex` but can be
-    /// overridden by the `CODEX_HOME` environment variable).
+    /// Directory containing all CodeForge state (defaults to `~/.codeforge` but can be
+    /// overridden by the `CODEFORGE_HOME` environment variable, with `CODEX_HOME`
+    /// retained as a compatibility fallback).
     pub codex_home: AbsolutePathBuf,
 
     /// Directory where Codex stores the SQLite state DB.
     pub sqlite_home: PathBuf,
 
-    /// Directory where Codex writes log files (defaults to `$CODEX_HOME/log`).
+    /// Directory where CodeForge writes log files (defaults to <config_home>/log,
+    /// where <config_home> is the directory returned by `find_codex_home`).
     pub log_dir: PathBuf,
 
     /// Directory where Codex writes effective session config lock files.
@@ -4019,3 +4021,5 @@ mod tests;
 #[cfg(test)]
 #[path = "config_loader_tests.rs"]
 mod config_loader_tests;
+
+

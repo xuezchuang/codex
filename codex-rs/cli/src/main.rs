@@ -87,7 +87,7 @@ use codex_protocol::protocol::AskForApproval;
 use codex_protocol::user_input::UserInput;
 use codex_terminal_detection::TerminalName;
 
-/// Codex CLI
+/// CodeForge CLI
 ///
 /// If no subcommand is specified, options will be forwarded to the interactive CLI.
 #[derive(Debug, Parser)]
@@ -96,11 +96,10 @@ use codex_terminal_detection::TerminalName;
     version,
     // If a sub‑command is given, ignore requirements of the default args.
     subcommand_negates_reqs = true,
-    // The executable is sometimes invoked via a platform‑specific name like
-    // `codex-x86_64-unknown-linux-musl`, but the help output should always use
-    // the generic `codex` command name that users run.
-    bin_name = "codex",
-    override_usage = "codex [OPTIONS] [PROMPT]\n       codex [OPTIONS] <COMMAND> [ARGS]"
+    // The executable is sometimes invoked via a platform-specific name, but the
+    // help output should use the CodeForge command name that users run.
+    bin_name = "codeforge",
+    override_usage = "codeforge [OPTIONS] [PROMPT]\n       codeforge [OPTIONS] <COMMAND> [ARGS]"
 )]
 struct MultitoolCli {
     #[clap(flatten)]
@@ -430,7 +429,7 @@ type HostSandboxArgs = UnsupportedSandboxArgs;
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 #[derive(Debug, Parser)]
 struct UnsupportedSandboxArgs {
-    /// Layer $CODEX_HOME/<name>.config.toml on top of the base user config.
+    /// Layer $CODEFORGE_HOME/<name>.config.toml on top of the base user config.
     #[arg(long = "profile", short = 'p')]
     pub config_profile: Option<ProfileV2Name>,
 
@@ -462,13 +461,13 @@ struct LoginCommand {
 
     #[arg(
         long = "with-api-key",
-        help = "Read the API key from stdin (e.g. `printenv OPENAI_API_KEY | codex login --with-api-key`)"
+        help = "Read the API key from stdin (e.g. `printenv CODEFORGE_API_KEY | codeforge login --with-api-key`)"
     )]
     with_api_key: bool,
 
     #[arg(
         long = "with-access-token",
-        help = "Read the access token from stdin (e.g. `printenv CODEX_ACCESS_TOKEN | codex login --with-access-token`)"
+        help = "Read the access token from stdin (e.g. `printenv CODEFORGE_ACCESS_TOKEN | codeforge login --with-access-token`)"
     )]
     with_access_token: bool,
 
@@ -581,7 +580,7 @@ struct ExecServerCommand {
     #[arg(long = "name", value_name = "NAME")]
     name: Option<String>,
 
-    /// Use Agent Identity auth from CODEX_ACCESS_TOKEN for remote registration.
+    /// Use Agent Identity auth from CODEFORGE_ACCESS_TOKEN for remote registration.
     #[arg(long = "use-agent-identity-auth", requires = "remote")]
     use_agent_identity_auth: bool,
 }
@@ -1364,7 +1363,7 @@ async fn cli_main(
                         .await;
                     } else if login_cli.api_key.is_some() {
                         eprintln!(
-                            "The --api-key flag is no longer supported. Pipe the key instead, e.g. `printenv OPENAI_API_KEY | codex login --with-api-key`."
+                            "The --api-key flag is no longer supported. Pipe the key instead, e.g. `printenv CODEFORGE_API_KEY | codeforge login --with-api-key`."
                         );
                         std::process::exit(1);
                     } else if login_cli.with_api_key {
@@ -1729,7 +1728,9 @@ async fn load_exec_server_remote_auth_provider(
 ) -> anyhow::Result<codex_api::SharedAuthProvider> {
     if use_agent_identity_auth {
         let agent_identity_jwt = read_codex_access_token_from_env().ok_or_else(|| {
-            anyhow::anyhow!("CODEX_ACCESS_TOKEN is required when --use-agent-identity-auth is set")
+            anyhow::anyhow!(
+                "CODEFORGE_ACCESS_TOKEN is required when --use-agent-identity-auth is set"
+            )
         })?;
         let auth =
             CodexAuth::from_agent_identity_jwt(&agent_identity_jwt, Some(&config.chatgpt_base_url))
@@ -1739,7 +1740,7 @@ async fn load_exec_server_remote_auth_provider(
 
     let auth = load_exec_server_remote_auth(
         config,
-        "remote exec-server registration requires ChatGPT authentication or API key authentication; run `codex login` or set CODEX_API_KEY",
+        "remote exec-server registration requires ChatGPT authentication or API key authentication; run `codeforge login` or set CODEFORGE_API_KEY",
     )
     .await?;
 

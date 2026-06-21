@@ -277,11 +277,21 @@ fn build_runtime() -> anyhow::Result<tokio::runtime::Runtime> {
 }
 
 const ILLEGAL_ENV_VAR_PREFIX: &str = "CODEX_";
+const ILLEGAL_ENV_VAR_PREFIX_CODEFORGE: &str = "CODEFORGE_";
 
-/// Load env vars from ~/.codex/.env.
+/// Returns true if a dotenvy key name (already upper-cased by the caller) is
+/// a protected prefix that `.env` files must not be allowed to set.
+fn is_illegal_env_var_prefix(key_upper: &str) -> bool {
+    key_upper.starts_with(ILLEGAL_ENV_VAR_PREFIX)
+        || key_upper.starts_with(ILLEGAL_ENV_VAR_PREFIX_CODEFORGE)
+}
+
+/// Load env vars from the configured CodeForge home directory
+/// (`~/.codeforge/.env` by default, or the directory pointed to by
+/// `CODEFORGE_HOME` / `CODEX_HOME`).
 ///
 /// Security: Do not allow `.env` files to create or modify any variables
-/// with names starting with `CODEX_`.
+/// with names starting with `CODEX_` or `CODEFORGE_`.
 fn load_dotenv() {
     if let Ok(codex_home) = find_codex_home()
         && let Ok(iter) = dotenvy::from_path_iter(codex_home.join(".env"))
@@ -290,13 +300,14 @@ fn load_dotenv() {
     }
 }
 
-/// Helper to set vars from a dotenvy iterator while filtering out `CODEX_` keys.
+/// Helper to set vars from a dotenvy iterator while filtering out keys with
+/// a protected prefix (`CODEX_` or `CODEFORGE_`).
 fn set_filtered<I>(iter: I)
 where
     I: IntoIterator<Item = Result<(String, String), dotenvy::Error>>,
 {
     for (key, value) in iter.into_iter().flatten() {
-        if !key.to_ascii_uppercase().starts_with(ILLEGAL_ENV_VAR_PREFIX) {
+        if !is_illegal_env_var_prefix(&key.to_ascii_uppercase()) {
             // It is safe to call set_var() because our process is
             // single-threaded at this point in its execution.
             unsafe { std::env::set_var(&key, &value) };
@@ -736,3 +747,4 @@ mod tests {
         Ok(())
     }
 }
+
